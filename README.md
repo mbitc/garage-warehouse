@@ -24,20 +24,20 @@ Projektas atsisako sudėtingų tarpinių serverių ir veikia kaip vieningas mono
    ```bash
    cd garage-warehouse
 
-```
+    ```
 
 2. **Įdiekite priklausomybes:**
-```bash
-npm install
+    ```bash
+    npm install
 
-```
+    ```
 
 
 3. **Paleiskite vystymo režimu (kartu su Electron langu):**
-```bash
-npm run electron:dev
+    ```bash
+    npm run electron:dev
 
-```
+    ```
 
 
 
