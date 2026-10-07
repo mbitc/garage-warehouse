@@ -2,13 +2,16 @@
   "name": "garage-warehouse",
   "version": "0.1.0",
   "private": true,
-  "scripts": {
+  "main": "main.js",
+ "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
-  },
+    "lint": "eslint",
+    "electron:dev": "concurrently \"next dev\" \"wait-on http://localhost:3000 && electron .\""
+  }, 
   "dependencies": {
+    "better-sqlite3": "^13.0.3",
     "next": "16.4.0",
     "react": "19.3.0",
     "react-dom": "19.3.0"
@@ -18,9 +21,16 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^10.0.5",
+    "electron": "^44.6.0",
     "eslint": "^9",
-    "eslint-config-next": "16.4.0",
+    "eslint-config-next": "^16.4.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wait-on": "^9.5.1"
+  },
+  "allowScripts": {
+    "unrs-resolver@1.12.2": true,
+    "better-sqlite3@13.0.3": true
   }
 }
