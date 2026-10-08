@@ -2,6 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
+import { SearchBar } from '@/components/SearchBar';
+import { StockTable } from '@/components/StockTable';
 
 export default function OperatorPage() {
   const router = useRouter();
@@ -12,9 +18,10 @@ export default function OperatorPage() {
   const [selectedProduct, setSelectedProduct] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('');
   const [quantity, setQuantity] = useState('1');
+  const [searchQuery, setSearchQuery] = useState('');
   const [message, setMessage] = useState({ text: '', type: '' });
 
-  // Surinkimo modalas / būsena
+  // Surinkimo modalas
   const [pickModalItem, setPickModalItem] = useState<any>(null);
   const [pickQty, setPickQty] = useState('1');
 
@@ -56,7 +63,7 @@ export default function OperatorPage() {
       if (!res.ok) {
         setMessage({ text: data.error || 'Nepavyko patalpinti prekės', type: 'error' });
       } else {
-        setMessage({ text: 'Prekė sėkmingai priimta ir patalpinta!', type: 'success' });
+        setMessage({ text: 'Prekė sėkmingai priimta ir patalpinta į sandėlį!', type: 'success' });
         setSelectedProduct('');
         setSelectedLocation('');
         setQuantity('1');
@@ -86,7 +93,7 @@ export default function OperatorPage() {
       if (!res.ok) {
         setMessage({ text: data.error || 'Nepavyko surinkti prekių', type: 'error' });
       } else {
-        setMessage({ text: data.message || 'Prekės surinktos!', type: 'success' });
+        setMessage({ text: data.message || 'Prekės surinktos ir sėkmingai nurašytos!', type: 'success' });
         setPickModalItem(null);
         setPickQty('1');
         loadData();
@@ -96,172 +103,122 @@ export default function OperatorPage() {
     }
   };
 
+  // Filtruojami sandėlio likučiai pagal paiešką
+  const filteredStock = stock.filter(s => 
+    s.product_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    s.sku?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    s.location_code?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
-    <div className="min-h-screen bg-gray-950 text-white p-6 relative">
-      <div className="max-w-5xl mx-auto">
+    <div className="min-h-screen bg-gray-950 text-white p-6">
+      <div className="max-w-6xl mx-auto space-y-6">
+        
         {/* Viršutinė juosta */}
-        <div className="flex justify-between items-center mb-8 border-b border-gray-800 pb-4">
+        <div className="flex justify-between items-center border-b border-gray-800 pb-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Operatoriaus Pultas</h1>
-            <p className="text-sm text-gray-400">Prekių priėmimas ir užsakymų surinkimas</p>
+            <p className="text-sm text-gray-400">Sandėlio logistika: prekių priėmimas, paieška ir tikslus surinkimas</p>
           </div>
-          <button
-            onClick={() => router.push('/')}
-            className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-sm rounded transition-colors"
-          >
+          <Button variant="secondary" onClick={() => router.push('/')}>
             Atsijungti
-          </button>
+          </Button>
         </div>
 
         {/* Pranešimai */}
         {message.text && (
-          <div className={`mb-6 p-4 rounded border text-sm ${message.type === 'error' ? 'bg-red-500/20 border-red-500 text-red-200' : 'bg-green-500/20 border-green-500 text-green-200'}`}>
+          <div className={`p-4 rounded border text-sm ${message.type === 'error' ? 'bg-red-500/20 border-red-500 text-red-200' : 'bg-green-500/20 border-green-500 text-green-200'}`}>
             {message.text}
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          {/* Priėmimo forma */}
-          <div className="bg-gray-900 p-6 rounded-xl border border-gray-800 h-fit">
-            <h2 className="text-lg font-semibold mb-4">Prekių Priėmimas (Padėjimas)</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Priėmimo forma (1 stulpelis) */}
+          <Card className="h-fit">
+            <h2 className="text-lg font-semibold mb-4">Prekių Priėmimas</h2>
             <form onSubmit={handleReceiveStock} className="space-y-4">
-              <div>
-                <label className="block text-xs text-gray-400 mb-1">Prekė</label>
-                <select
-                  value={selectedProduct}
-                  onChange={e => setSelectedProduct(e.target.value)}
-                  className="w-full p-2.5 bg-gray-950 border border-gray-800 rounded text-sm text-white focus:outline-none focus:border-blue-500"
-                  required
-                >
-                  <option value="">-- Pasirinkite prekę --</option>
-                  {products.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} (SKU: {p.sku})
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <Select
+                label="Prekė"
+                placeholder="-- Pasirinkite prekę --"
+                value={selectedProduct}
+                onChange={e => setSelectedProduct(e.target.value)}
+                options={products.map(p => ({ value: p.id, label: `${p.name} (SKU: ${p.sku})` }))}
+                required
+              />
 
-              <div>
-                <label className="block text-xs text-gray-400 mb-1">Lentyna (Lokacija)</label>
-                <select
-                  value={selectedLocation}
-                  onChange={e => setSelectedLocation(e.target.value)}
-                  className="w-full p-2.5 bg-gray-950 border border-gray-800 rounded text-sm text-white focus:outline-none focus:border-blue-500"
-                  required
-                >
-                  <option value="">-- Pasirinkite lentyną --</option>
-                  {locations.map(l => (
-                    <option key={l.id} value={l.id}>
-                      {l.code} ({l.width}×{l.height}×{l.depth} mm)
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <Select
+                label="Lentyna (Lokacija)"
+                placeholder="-- Pasirinkite lentyną --"
+                value={selectedLocation}
+                onChange={e => setSelectedLocation(e.target.value)}
+                options={locations.map(l => ({ value: l.id, label: `${l.code} (${l.width}×{l.height}×{l.depth} mm)` }))}
+                required
+              />
 
-              <div>
-                <label className="block text-xs text-gray-400 mb-1">Kiekis (vnt.)</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={quantity}
-                  onChange={e => setQuantity(e.target.value)}
-                  className="w-full p-2.5 bg-gray-950 border border-gray-800 rounded text-sm text-white focus:outline-none focus:border-blue-500"
-                  required
-                />
-              </div>
+              <Input
+                label="Kiekis (vnt.)"
+                type="number"
+                min="1"
+                value={quantity}
+                onChange={e => setQuantity(e.target.value)}
+                required
+              />
 
-              <button
-                type="submit"
-                className="w-full py-3 bg-blue-600 hover:bg-blue-500 transition-colors font-medium rounded text-sm shadow"
-              >
+              <Button type="submit" className="w-full mt-2">
                 Tikrinti tūrį ir Priimti
-              </button>
+              </Button>
             </form>
-          </div>
+          </Card>
 
-          {/* Greita sandėlio apžvalga */}
-          <div className="bg-gray-900 p-6 rounded-xl border border-gray-800 flex flex-col">
-            <h2 className="text-lg font-semibold mb-4">Esami Sandėlio Likučiai</h2>
-            <div className="overflow-x-auto flex-grow">
-              <table className="w-full text-left text-sm text-gray-300">
-                <thead className="border-b border-gray-800 text-xs uppercase text-gray-500">
-                  <tr>
-                    <th className="pb-3">Lentyna</th>
-                    <th className="pb-3">Prekė</th>
-                    <th className="pb-3">Kiekis</th>
-                    <th className="pb-3 text-right">Veiksmas</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-800">
-                  {stock.map(s => (
-                    <tr key={s.id}>
-                      <td className="py-3 font-mono text-green-400 font-bold">{s.location_code || '-'}</td>
-                      <td className="py-3">{s.product_name}</td>
-                      <td className="py-3 font-bold">{s.quantity} vnt.</td>
-                      <td className="py-3 text-right">
-                        <button
-                          onClick={() => { setPickModalItem(s); setPickQty('1'); }}
-                          className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded text-xs transition-colors font-medium"
-                        >
-                          Surinkti
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {stock.length === 0 && (
-                    <tr><td colSpan={4} className="py-4 text-center text-gray-500">Sandėlis kol kas tuščias.</td></tr>
-                  )}
-                </tbody>
-              </table>
+          {/* Sandėlio likučiai ir paieška (2 stulpeliai) */}
+          <Card className="md:col-span-2 flex flex-col">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+              <h2 className="text-lg font-semibold">Sandėlio Likučiai ir Surinkimas</h2>
+              <div className="w-full sm:w-72">
+                <SearchBar value={searchQuery} onChange={setSearchQuery} />
+              </div>
             </div>
-          </div>
+
+            <div className="flex-grow">
+              <StockTable stock={filteredStock} onPick={item => { setPickModalItem(item); setPickQty('1'); }} />
+            </div>
+          </Card>
         </div>
       </div>
 
-      {/* Surinkimo / Nurašymo langelis (Modal) */}
+      {/* Surinkimo Modal langas */}
       {pickModalItem && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
-          <div className="bg-gray-900 border border-gray-800 p-6 rounded-xl w-full max-w-md shadow-2xl">
+          <Card className="w-full max-w-md shadow-2xl">
             <h3 className="text-lg font-bold mb-2">Prekių Surinkimas (Išdavimas)</h3>
-            <p className="text-xs text-gray-400 mb-4">
+            <p className="text-xs text-gray-400 mb-2">
               Lentyna: <span className="text-green-400 font-mono font-bold">{pickModalItem.location_code}</span> | Prekė: <span className="text-white font-medium">{pickModalItem.product_name}</span>
             </p>
             <p className="text-xs text-gray-400 mb-4">
-              Esamas kiekis lentynoje: <span className="text-white font-bold">{pickModalItem.quantity} vnt.</span>
+              Likutis lentynoje: <span className="text-white font-bold">{pickModalItem.quantity} vnt.</span>
             </p>
 
             <form onSubmit={handlePickStock} className="space-y-4">
-              <div>
-                <label className="block text-xs text-gray-400 mb-1">Kiek surinkti (nurašyti)?</label>
-                <input
-                  type="number"
-                  min="1"
-                  max={pickModalItem.quantity}
-                  value={pickQty}
-                  onChange={e => setPickQty(e.target.value)}
-                  className="w-full p-2.5 bg-gray-950 border border-gray-800 rounded text-sm text-white focus:outline-none focus:border-amber-500"
-                  required
-                />
-              </div>
+              <Input
+                label="Kiek surinkti (nurašyti)?"
+                type="number"
+                min="1"
+                max={pickModalItem.quantity}
+                value={pickQty}
+                onChange={e => setPickQty(e.target.value)}
+                required
+              />
 
               <div className="flex space-x-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setPickModalItem(null)}
-                  className="w-1/2 py-2.5 bg-gray-800 hover:bg-gray-700 rounded text-sm font-medium transition-colors"
-                >
+                <Button type="button" variant="secondary" onClick={() => setPickModalItem(null)} className="w-1/2">
                   Atšaukti
-                </button>
-                <button
-                  type="submit"
-                  className="w-1/2 py-2.5 bg-amber-600 hover:bg-amber-500 rounded text-sm font-medium transition-colors shadow"
-                >
+                </Button>
+                <Button type="submit" variant="warning" className="w-1/2">
                   Patvirtinti Surinkimą
-                </button>
+                </Button>
               </div>
             </form>
-          </div>
+          </Card>
         </div>
       )}
     </div>
