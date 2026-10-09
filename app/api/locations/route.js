@@ -6,18 +6,30 @@ function getDb() {
   const dbPath = path.join(process.cwd(), 'warehouse.db');
   const db = new Database(dbPath);
   
-  // Užtikrinam, kad lentelė sukurta su visais reikalingais stulpeliais
+  // 1. Bazinė lentelė (jei DB visiškai nauja)
   db.prepare(`
     CREATE TABLE IF NOT EXISTS locations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      code TEXT UNIQUE NOT NULL,
-      type TEXT DEFAULT 'FLOOR',
-      width INTEGER DEFAULT 0,
-      height INTEGER DEFAULT 0,
-      depth INTEGER DEFAULT 0,
-      description TEXT
+      code TEXT UNIQUE NOT NULL
     )
   `).run();
+
+  // 2. Automatinė migracija: saugiai pridedame trūkstamus stulpelius prie esamos DB
+  const columnsToEnsure = [
+    { name: 'type', def: "TEXT DEFAULT 'FLOOR'" },
+    { name: 'width', def: "INTEGER DEFAULT 0" },
+    { name: 'height', def: "INTEGER DEFAULT 0" },
+    { name: 'depth', def: "INTEGER DEFAULT 0" },
+    { name: 'description', def: "TEXT" }
+  ];
+
+  for (const col of columnsToEnsure) {
+    try {
+      db.prepare(`ALTER TABLE locations ADD COLUMN ${col.name} ${col.def}`).run();
+    } catch (e) {
+      // Ignoruojame klaidą, jei stulpelis jau egzistuoja
+    }
+  }
 
   return db;
 }
@@ -44,11 +56,10 @@ export async function POST(request) {
 
     const db = getDb();
 
-    // Patikrinam ar toks kodas jau egzistuoja
     const existing = db.prepare('SELECT id FROM locations WHERE code = ?').get(code);
     if (existing) {
       db.close();
-      return NextResponse.json({ error: 'Tokia lokacija su šiuo kodu jau egzistuoja' }, { status: 400 });
+      return NextResponse.json({ error: `Lokacija ${code} jau egzistuoja` }, { status: 400 });
     }
 
     const stmt = db.prepare(`
