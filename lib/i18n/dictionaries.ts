@@ -79,6 +79,13 @@ export const dictionaries = {
     locationSaved: 'Išsaugota!',
     batchSuccess: 'Sėkmingai sugeneruota vietų!',
     connectionError: 'Ryšio klaida',
+    filterAll: 'Visi tipai',
+    filterFloor: 'Grindys',
+    filterRack: 'Stelažai',
+    filterTransit: 'Tranzitas',
+    sortBy: 'Rūšiuoti pagal',
+    sortByCode: 'Kodą (A-Z / 1-9)',
+    sortByType: 'Tipą (Grindys / Stelažai)',
   },
   en: {
     // Startinis langas (app/page.tsx)
@@ -158,5 +165,12 @@ export const dictionaries = {
     locationSaved: 'Saved successfully!',
     batchSuccess: 'Locations generated successfully!',
     connectionError: 'Connection error',
+    filterAll: 'All Types',
+    filterFloor: 'Floor',
+    filterRack: 'Rack',
+    filterTransit: 'Transit',
+    sortBy: 'Sort by',
+    sortByCode: 'Code (A-Z / 1-9)',
+    sortByType: 'Type (Floor / Rack)',
   },
 };

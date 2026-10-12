@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -8,6 +8,35 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { useTranslation } from '@/context/LanguageContext';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+
+// Griežtas daugialygis alfanumerinis lyginimas per visus segmentus (1-ą, 2-ą, 3-ią... indeksą)
+function naturalSort(aCode: string, bCode: string): number {
+  // Skaidome kodą į tekstines ir skaitines dalis (pvz. "S1-01-05" -> ["S", "1", "-", "01", "-", "05"])
+  const aChunks = aCode.split(/(\d+)/);
+  const bChunks = bCode.split(/(\d+)/);
+  const minLen = Math.min(aChunks.length, bChunks.length);
+
+  for (let i = 0; i < minLen; i++) {
+    const aChunk = aChunks[i];
+    const bChunk = bChunks[i];
+
+    if (aChunk !== bChunk) {
+      const aNum = parseInt(aChunk, 10);
+      const bNum = parseInt(bChunk, 10);
+
+      // Jei abu segmentai skaitiniai – lyginame kaip skaičius
+      if (!isNaN(aNum) && !isNaN(bNum)) {
+        if (aNum !== bNum) return aNum - bNum;
+      } else {
+        // Jei tai tekstas ar skyriklis – lyginame kaip raidines dalis
+        const comp = aChunk.localeCompare(bChunk, undefined, { sensitivity: 'base' });
+        if (comp !== 0) return comp;
+      }
+    }
+  }
+
+  return aChunks.length - bChunks.length;
+}
 
 export default function LocationsAdminPage() {
   const router = useRouter();
@@ -17,7 +46,12 @@ export default function LocationsAdminPage() {
   const [mode, setMode] = useState<'single' | 'batch'>('single');
   const [editingId, setEditingId] = useState<number | null>(null);
 
-  // Vienetinio įvedimo laukai
+  // Rūšiavimas ir filtravimas
+  const [filterType, setFilterType] = useState<string>('ALL');
+  const [sortBy, setSortBy] = useState<'code' | 'type'>('code');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
+  // Formos laukai
   const [code, setCode] = useState('');
   const [type, setType] = useState('FLOOR');
   const [width, setWidth] = useState('1200');
@@ -25,7 +59,6 @@ export default function LocationsAdminPage() {
   const [height, setHeight] = useState('1800');
   const [description, setDescription] = useState('');
 
-  // Masinio generavimo laukai
   const [batchPrefix, setBatchPrefix] = useState('S1-');
   const [batchStart, setBatchStart] = useState('1');
   const [batchCount, setBatchCount] = useState('5');
@@ -45,6 +78,33 @@ export default function LocationsAdminPage() {
       }
     } catch (err) {
       console.error('Klaida kraunant lokacijas', err);
+    }
+  };
+
+  // Atsižvelgia į 1-ą, 2-ą, 3-ią indeksą nepriklausomai nuo brūkšnelių ar gylio
+  const processedLocations = useMemo(() => {
+    return [...locations]
+      .filter(loc => filterType === 'ALL' || loc.type === filterType)
+      .sort((a, b) => {
+        let comp = 0;
+        if (sortBy === 'code') {
+          comp = naturalSort(a.code || '', b.code || '');
+        } else if (sortBy === 'type') {
+          comp = (a.type || '').localeCompare(b.type || '');
+          if (comp === 0) {
+            comp = naturalSort(a.code || '', b.code || '');
+          }
+        }
+        return sortOrder === 'asc' ? comp : -comp;
+      });
+  }, [locations, filterType, sortBy, sortOrder]);
+
+  const toggleSort = (field: 'code' | 'type') => {
+    if (sortBy === field) {
+      setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(field);
+      setSortOrder('asc');
     }
   };
 
@@ -356,33 +416,103 @@ export default function LocationsAdminPage() {
 
           {/* Dešinė pusė: Sąrašas */}
           <Card className="md:col-span-2 space-y-4 bg-gray-900 border-gray-800">
-            <div className="flex justify-between items-center">
-              <h2 className="text-lg font-bold">{t?.existingLocations || 'Esamos Vietos'} ({locations.length})</h2>
+            
+            {/* Filtrai ir Įrankiai */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-gray-800 pb-3">
+              <div>
+                <h2 className="text-lg font-bold">
+                  {t?.existingLocations || 'Esamos Vietos'} ({processedLocations.length} / {locations.length})
+                </h2>
+              </div>
+
+              {/* Filtravimo mygtukai pagal tipą */}
+              <div className="flex items-center space-x-1 bg-gray-950 p-1 rounded-lg border border-gray-800 text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setFilterType('ALL')}
+                  className={`px-2.5 py-1 rounded transition-colors ${
+                    filterType === 'ALL' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  {t?.filterAll || 'Visi'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterType('FLOOR')}
+                  className={`px-2.5 py-1 rounded transition-colors ${
+                    filterType === 'FLOOR' ? 'bg-amber-600 text-white' : 'text-amber-400 hover:text-white'
+                  }`}
+                >
+                {t?.filterFloor || 'Grindys' }
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterType('RACK')}
+                  className={`px-2.5 py-1 rounded transition-colors ${
+                    filterType === 'RACK' ? 'bg-blue-600 text-white' : 'text-blue-400 hover:text-white'
+                  }`}
+                >
+                {t?.filterRack || 'Stelažai' }
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterType('BULK')}
+                  className={`px-2.5 py-1 rounded transition-colors ${
+                    filterType === 'BULK' ? 'bg-purple-600 text-white' : 'text-purple-400 hover:text-white'
+                  }`}
+                >
+                {t?.filterTransit || 'Tranzitas' }
+                </button>
+              </div>
+
               <Button variant="secondary" onClick={() => window.print()} className="text-xs">
-                {t?.printList || '🖨️ Spausdinti Sąrašą / Lipdukus'}
+                {t?.printList || '🖨️ Spausdinti'}
               </Button>
             </div>
 
+            {/* Lentelė */}
             <div className="overflow-x-auto max-h-[550px] overflow-y-auto rounded border border-gray-800">
               <table className="w-full text-left text-sm text-gray-300">
-                <thead className="border-b border-gray-800 text-xs uppercase text-gray-400 sticky top-0 bg-gray-950">
+                <thead className="border-b border-gray-800 text-xs uppercase text-gray-400 sticky top-0 bg-gray-950 select-none">
                   <tr>
-                    <th className="py-3 px-3">{t?.colCode || 'Kodas'}</th>
-                    <th className="py-3 px-3">{t?.colType || 'Tipas'}</th>
+                    <th 
+                      onClick={() => toggleSort('code')} 
+                      className="py-3 px-3 cursor-pointer hover:text-white transition-colors"
+                    >
+                      <div className="flex items-center space-x-1">
+                        <span>{t?.colCode || 'Kodas'}</span>
+                        {sortBy === 'code' && (
+                          <span className="text-blue-400 font-bold">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
+                    </th>
+
+                    <th 
+                      onClick={() => toggleSort('type')} 
+                      className="py-3 px-3 cursor-pointer hover:text-white transition-colors"
+                    >
+                      <div className="flex items-center space-x-1">
+                        <span>{t?.colType || 'Tipas'}</span>
+                        {sortBy === 'type' && (
+                          <span className="text-blue-400 font-bold">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
+                    </th>
+
                     <th className="py-3 px-3">{t?.colDimensions || 'Matmenys (P×G×A)'}</th>
                     <th className="py-3 px-3">{t?.colDescription || 'Aprašymas'}</th>
                     <th className="py-3 px-3 text-right">{t?.colActions || 'Veiksmai'}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800 bg-gray-900/50">
-                  {locations.length === 0 ? (
+                  {processedLocations.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="py-8 text-center text-gray-500 text-sm">
-                        Nėra sukurtų lokacijų. Naudokite kairėje esančią formą.
+                        Lokacijų nerasta pasirinktame filtre.
                       </td>
                     </tr>
                   ) : (
-                    locations.map(l => (
+                    processedLocations.map(l => (
                       <tr key={l.id} className="hover:bg-gray-800/60 transition-colors">
                         <td className="py-3 px-3 font-mono text-green-400 font-bold">{l.code}</td>
                         <td className="py-3 px-3">
