@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { QRCodeSVG } from 'qrcode.react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -11,7 +12,6 @@ import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 
 // Griežtas daugialygis alfanumerinis lyginimas per visus segmentus (1-ą, 2-ą, 3-ią... indeksą)
 function naturalSort(aCode: string, bCode: string): number {
-  // Skaidome kodą į tekstines ir skaitines dalis (pvz. "S1-01-05" -> ["S", "1", "-", "01", "-", "05"])
   const aChunks = aCode.split(/(\d+)/);
   const bChunks = bCode.split(/(\d+)/);
   const minLen = Math.min(aChunks.length, bChunks.length);
@@ -24,11 +24,9 @@ function naturalSort(aCode: string, bCode: string): number {
       const aNum = parseInt(aChunk, 10);
       const bNum = parseInt(bChunk, 10);
 
-      // Jei abu segmentai skaitiniai – lyginame kaip skaičius
       if (!isNaN(aNum) && !isNaN(bNum)) {
         if (aNum !== bNum) return aNum - bNum;
       } else {
-        // Jei tai tekstas ar skyriklis – lyginame kaip raidines dalis
         const comp = aChunk.localeCompare(bChunk, undefined, { sensitivity: 'base' });
         if (comp !== 0) return comp;
       }
@@ -65,6 +63,9 @@ export default function LocationsAdminPage() {
 
   const [message, setMessage] = useState({ text: '', type: '' });
 
+  // Pasirinktos lokacijos spausdinimui (ID masyvas)
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+
   useEffect(() => {
     loadLocations();
   }, []);
@@ -74,14 +75,16 @@ export default function LocationsAdminPage() {
       const res = await fetch('/api/locations');
       if (res.ok) {
         const data = await res.json();
-        setLocations(Array.isArray(data) ? data : []);
+        const list = Array.isArray(data) ? data : [];
+        setLocations(list);
+        // Pagal nutylėjimą pažymime visas lokacijas spausdinimui
+        setSelectedIds(list.map(l => l.id));
       }
     } catch (err) {
       console.error('Klaida kraunant lokacijas', err);
     }
   };
 
-  // Atsižvelgia į 1-ą, 2-ą, 3-ią indeksą nepriklausomai nuo brūkšnelių ar gylio
   const processedLocations = useMemo(() => {
     return [...locations]
       .filter(loc => filterType === 'ALL' || loc.type === filterType)
@@ -98,6 +101,24 @@ export default function LocationsAdminPage() {
         return sortOrder === 'asc' ? comp : -comp;
       });
   }, [locations, filterType, sortBy, sortOrder]);
+
+  // Žymėjimo valdymas
+  const toggleSelectAll = () => {
+    if (selectedIds.length === processedLocations.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(processedLocations.map(l => l.id));
+    }
+  };
+
+  const toggleSelectOne = (id: number) => {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  // Atrinktos lokacijos spausdinimui
+  const printItems = locations.filter(l => selectedIds.includes(l.id));
 
   const toggleSort = (field: 'code' | 'type') => {
     if (sortBy === field) {
@@ -252,7 +273,33 @@ export default function LocationsAdminPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white p-6">
-      <div className="max-w-6xl mx-auto space-y-6">
+      
+      {/* SPAUSDINIMO MAKETAS (matomas TIK spausdinant) */}
+      <div className="hidden print:block print:p-0 print:bg-white print:text-black">
+        <div className="grid grid-cols-2 gap-4">
+          {printItems.map(item => (
+            <div 
+              key={item.id} 
+              className="border-2 border-black p-4 rounded-lg flex items-center justify-between space-x-4 page-break-inside-avoid"
+            >
+              <div className="space-y-1">
+                <span className="text-xs uppercase font-bold px-2 py-0.5 border border-black rounded inline-block">
+                  {item.type}
+                </span>
+                <h1 className="text-3xl font-extrabold font-mono tracking-wider">{item.code}</h1>
+                <p className="text-xs font-mono">{item.width} × {item.depth} × {item.height} mm</p>
+                {item.description && <p className="text-[10px] italic">{item.description}</p>}
+              </div>
+              <div>
+                <QRCodeSVG value={item.code} size={90} level="H" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* STANDARTINIS EKRANO VAIZDAS (slepiamas spausdinant) */}
+      <div className="max-w-6xl mx-auto space-y-6 print:hidden">
         
         {/* Viršutinė juosta */}
         <div className="flex justify-between items-center border-b border-gray-800 pb-4">
@@ -443,7 +490,7 @@ export default function LocationsAdminPage() {
                     filterType === 'FLOOR' ? 'bg-amber-600 text-white' : 'text-amber-400 hover:text-white'
                   }`}
                 >
-                {t?.filterFloor || 'Grindys' }
+                  {t?.filterFloor || 'Grindys'}
                 </button>
                 <button
                   type="button"
@@ -452,7 +499,7 @@ export default function LocationsAdminPage() {
                     filterType === 'RACK' ? 'bg-blue-600 text-white' : 'text-blue-400 hover:text-white'
                   }`}
                 >
-                {t?.filterRack || 'Stelažai' }
+                  {t?.filterRack || 'Stelažai'}
                 </button>
                 <button
                   type="button"
@@ -461,20 +508,32 @@ export default function LocationsAdminPage() {
                     filterType === 'BULK' ? 'bg-purple-600 text-white' : 'text-purple-400 hover:text-white'
                   }`}
                 >
-                {t?.filterTransit || 'Tranzitas' }
+                  {t?.filterTransit || 'Tranzitas'}
                 </button>
               </div>
 
-              <Button variant="secondary" onClick={() => window.print()} className="text-xs">
-                {t?.printList || '🖨️ Spausdinti'}
-              </Button>
+              <Button 
+                onClick={() => window.print()} 
+                disabled={selectedIds.length === 0}
+                className="text-xs font-bold bg-green-600 hover:bg-green-500 disabled:opacity-40"
+              >
+                {t?.printSticker || 'Spausdinti Lipdukus' } ({selectedIds.length})
+              </Button> 
             </div>
 
-            {/* Lentelė */}
+            {/* Lentelė su žymėjimo varnelėmis */}
             <div className="overflow-x-auto max-h-[550px] overflow-y-auto rounded border border-gray-800">
               <table className="w-full text-left text-sm text-gray-300">
                 <thead className="border-b border-gray-800 text-xs uppercase text-gray-400 sticky top-0 bg-gray-950 select-none">
                   <tr>
+                    <th className="py-3 px-3 w-10 text-center">
+                      <input 
+                        type="checkbox"
+                        checked={selectedIds.length === processedLocations.length && processedLocations.length > 0}
+                        onChange={toggleSelectAll}
+                        className="rounded border-gray-700 text-blue-600 focus:ring-0 cursor-pointer"
+                      />
+                    </th>
                     <th 
                       onClick={() => toggleSort('code')} 
                       className="py-3 px-3 cursor-pointer hover:text-white transition-colors"
@@ -507,45 +566,56 @@ export default function LocationsAdminPage() {
                 <tbody className="divide-y divide-gray-800 bg-gray-900/50">
                   {processedLocations.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-8 text-center text-gray-500 text-sm">
+                      <td colSpan={6} className="py-8 text-center text-gray-500 text-sm">
                         Lokacijų nerasta pasirinktame filtre.
                       </td>
                     </tr>
                   ) : (
-                    processedLocations.map(l => (
-                      <tr key={l.id} className="hover:bg-gray-800/60 transition-colors">
-                        <td className="py-3 px-3 font-mono text-green-400 font-bold">{l.code}</td>
-                        <td className="py-3 px-3">
-                          <span className={`px-2 py-0.5 rounded text-xs font-bold ${
-                            l.type === 'FLOOR' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
-                            l.type === 'RACK' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' :
-                            'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                          }`}>
-                            {l.type || 'FLOOR'}
-                          </span>
-                        </td>
-                        <td className="py-3 px-3 font-mono text-xs text-gray-300">
-                          {l.width || 0} × {l.depth || 0} × {l.height || 0} mm
-                        </td>
-                        <td className="py-3 px-3 text-gray-400 text-xs">{l.description || '-'}</td>
-                        <td className="py-3 px-3 text-right space-x-2">
-                          <button 
-                            type="button"
-                            onClick={() => handleStartEdit(l)}
-                            className="text-xs bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 px-2.5 py-1 rounded border border-blue-500/30 font-semibold"
-                          >
-                            {t?.edit || 'Redaguoti'}
-                          </button>
-                          <button 
-                            type="button"
-                            onClick={() => handleDeleteLocation(l.id, l.code)}
-                            className="text-xs bg-red-600/20 hover:bg-red-600/40 text-red-300 px-2.5 py-1 rounded border border-red-500/30 font-semibold"
-                          >
-                            {t?.delete || 'Trinti'}
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                    processedLocations.map(l => {
+                      const isSelected = selectedIds.includes(l.id);
+                      return (
+                        <tr key={l.id} className={`hover:bg-gray-800/60 transition-colors ${isSelected ? 'bg-blue-950/20' : ''}`}>
+                          <td className="py-3 px-3 text-center">
+                            <input 
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleSelectOne(l.id)}
+                              className="rounded border-gray-700 text-blue-600 focus:ring-0 cursor-pointer"
+                            />
+                          </td>
+                          <td className="py-3 px-3 font-mono text-green-400 font-bold">{l.code}</td>
+                          <td className="py-3 px-3">
+                            <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                              l.type === 'FLOOR' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                              l.type === 'RACK' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' :
+                              'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                            }`}>
+                              {l.type || 'FLOOR'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 font-mono text-xs text-gray-300">
+                            {l.width || 0} × {l.depth || 0} × {l.height || 0} mm
+                          </td>
+                          <td className="py-3 px-3 text-gray-400 text-xs">{l.description || '-'}</td>
+                          <td className="py-3 px-3 text-right space-x-2">
+                            <button 
+                              type="button"
+                              onClick={() => handleStartEdit(l)}
+                              className="text-xs bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 px-2.5 py-1 rounded border border-blue-500/30 font-semibold"
+                            >
+                              {t?.edit || 'Redaguoti'}
+                            </button>
+                            <button 
+                              type="button"
+                              onClick={() => handleDeleteLocation(l.id, l.code)}
+                              className="text-xs bg-red-600/20 hover:bg-red-600/40 text-red-300 px-2.5 py-1 rounded border border-red-500/30 font-semibold"
+                            >
+                              {t?.delete || 'Trinti'}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>

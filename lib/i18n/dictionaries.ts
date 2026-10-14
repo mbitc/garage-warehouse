@@ -86,6 +86,7 @@ export const dictionaries = {
     sortBy: 'Rūšiuoti pagal',
     sortByCode: 'Kodą (A-Z / 1-9)',
     sortByType: 'Tipą (Grindys / Stelažai)',
+    printSticker: 'Spausdinti Lipdukus',
   },
   en: {
     // Startinis langas (app/page.tsx)
@@ -172,5 +173,6 @@ export const dictionaries = {
     sortBy: 'Sort by',
     sortByCode: 'Code (A-Z / 1-9)',
     sortByType: 'Type (Floor / Rack)',
+    printSticker: 'Print Stickers',
   },
 };
